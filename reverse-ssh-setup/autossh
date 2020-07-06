@@ -1,0 +1,3 @@
+#!/bin/sh
+su -c "autossh -M 0 -f -N -R 20000:localhost:22 username@host -o LogLevel=error -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no" root
+
