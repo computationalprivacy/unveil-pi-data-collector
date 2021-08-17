@@ -1,3 +1,4 @@
+"""Code to manage common functionality of a network interface"""
 # This code has been adapted from the original file
 # written by Ivan Sapozhkov and Denis Chagin <denis.chagin@emlid.com>
 #
@@ -38,29 +39,27 @@ import os
 import re
 import subprocess
 
-from sysdmanager import SystemdManager
-from netifaces import ifaddresses, AF_INET, AF_LINK
+from netifaces import ifaddresses, AF_INET, AF_LINK  # pylint: disable=no-name-in-module
+from sysdmanager import SystemdManager  # pylint: disable=import-error
 
 
 class WiFiControlError(Exception):
     """Error in WiFi Control."""
 
-    pass
 
-
-class WiFi(object):
+class WiFi:
     """WiFi Object that defines basic functions required."""
 
     restart_mdns = "systemctl restart mdns.service && sleep 2"
-    rfkill_wifi_control = lambda self, action: "rfkill {} wifi".format(action)
+    rfkill_wifi_control = lambda self, action: f"rfkill {action} wifi"
 
-    def __init__(self, interface):
+    def __init__(self, ext_iface):
         """Initialize the WiFi object with interface.
 
         Args:
-            interface (str): Interface over which wifi is to be run.
+            ext_iface (str): Interface over which wifi is to be run.
         """
-        self.interface = interface
+        self.ext_iface = ext_iface
         self.sysdmanager = SystemdManager()
 
     def restart_dns(self):
@@ -78,55 +77,58 @@ class WiFi(object):
     def get_device_ip(self):
         """Get IP address of the interface."""
         try:
-            return ifaddresses(self.interface)[AF_INET][0]['addr']
+            return ifaddresses(self.ext_iface)[AF_INET][0]["addr"]
         except KeyError:
             return "127.0.0.1"
 
     def get_device_mac(self):
         """Get mac address of the interface."""
         try:
-            return ifaddresses(self.interface)[AF_LINK][0]['addr']
+            return ifaddresses(self.ext_iface)[AF_LINK][0]["addr"]
         except KeyError:
             return "00:00:00:00:00:00"
 
-    def re_search(self, pattern, file):
+    @staticmethod
+    def re_search(pattern, file):
         """Search for a regex pattern in the file and return the line."""
-        with open(file, 'r', 0) as data_file:
+        with open(file, "r", 0) as data_file:
             data = data_file.read()
         return re.search(pattern, data, re.MULTILINE).group(0)
 
-    def replace(self, pattern, text, file):
+    @staticmethod
+    def replace(pattern, text, file):
         """Replace the regex patter in the file with given text."""
-        with open(file, 'r') as data_file:
+        with open(file, "r") as data_file:
             data = data_file.read()
         old = re.search(pattern, data, re.MULTILINE).group(0)
         data = data.replace(old, text)
-        with open(file, 'wb', 0) as data_file:
+        with open(file, "wb", 0) as data_file:
             data_file.write(data.replace(old, text).encode())
             data_file.flush()
             os.fsync(data_file)
         return data
 
-    def write(self, data, file):
+    @staticmethod
+    def write(data, file):
         """Write data to the file."""
-        with open(file, 'w') as data_file:
+        with open(file, "w") as data_file:
             data_file.write(data)
             data_file.flush()
             os.fsync(data_file)
 
-    def execute_command(self, args):
+    @staticmethod
+    def execute_command(args):
         """Execute a certain command."""
         try:
-            return subprocess.check_output(args, stderr=subprocess.PIPE,
-                                           shell=True)
+            return subprocess.check_output(args, stderr=subprocess.PIPE, shell=True)
         except subprocess.CalledProcessError as error:
             error_message = "WiFiControl: subprocess call error\n"
-            error_message += "Return code: {}\n".format(error.returncode)
-            error_message += "Command: {}".format(args)
+            error_message += f"Return code: {error.returncode}\n"
+            error_message += f"Command: {args}"
             raise WiFiControlError(error_message)
 
 
-if __name__ == '__main__':
-    wifi = WiFi('wlp6s0')
+if __name__ == "__main__":
+    wifi = WiFi("wlp6s0")
     print(wifi.get_device_ip())
     print(wifi.get_device_mac())

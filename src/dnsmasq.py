@@ -12,23 +12,33 @@
       -j MASQUERADE
     + iptables --append FORWARD --in-interface wlan1 -j ACCEPT
 """
-from .wificommon import WiFi
+import subprocess
+
+from .wificommon import WiFi, WiFiControlError
 
 
 class DNSMasq(WiFi):
     """DNSMasq controller."""
 
-    def __init__(
-        self, interface, internet_interface,
-            dnsmasq_config='/etc/dnsmasq.d/dnsmasq.conf'):
+    def __init__(  # pylint: disable=too-many-arguments
+        self,
+        ext_iface,
+        int_iface,
+        dnsmasq_config="/etc/dnsmasq.d/dnsmasq.conf",
+        dnsmasq_config_defaults="dnsmasq.conf",
+        iptables_config="iptables.conf",
+    ):
+
         """Initalize dnsmasq controller."""
-        super(DNSMasq, self).__init__(interface)
-        self.interface = interface
-        self.internet_interface = internet_interface
+        super(DNSMasq, self).__init__(ext_iface)
+        self.iptables_config = iptables_config
+        self.dnsmasq_config_defaults = dnsmasq_config_defaults
+        self.ext_iface = ext_iface
+        self.int_iface = int_iface
         self.dnsmasq_config = dnsmasq_config
 
-        if (b'bin/dnsmasq' not in self.execute_command("whereis dnsmasq")):
-            raise OSError('No DNSMASQ service')
+        if b"bin/dnsmasq" not in self.execute_command("whereis dnsmasq"):
+            raise OSError("No DNSMASQ service")
 
         self.started = lambda: self.sysdmanager.is_active("dnsmasq.service")
         self.set_dnsmasq_conf()
@@ -36,44 +46,71 @@ class DNSMasq(WiFi):
 
     def set_dnsmasq_conf(self):
         """Set dnsmasq conf."""
-        self.write(self.get_dnsmasq_conf(), self.dnsmasq_config)
+        try:
+            with open(self.dnsmasq_config_defaults, "r") as defaults:
+                self.write(defaults.read(), self.dnsmasq_config)
+        except FileNotFoundError:
+            self.write(self.get_dnsmasq_conf(), self.dnsmasq_config)
 
     def get_dnsmasq_conf(self):
         """Set the dnsmasq conf."""
         dnsmasq_conf_rules = [
-            'interface={}'.format(self.interface),
-            'dhcp-range=192.168.1.2,192.168.1.30,12h',
-            'dhcp-option=1,255.255.255.0',
-            'dhcp-option=3,192.168.1.1',
-            'dhcp-option=6,192.168.1.1',
-            'server=8.8.8.8',
-            'log-queries',
-            'log-dhcp',
-            'listen-address=127.0.0.1'
+            f"interface={self.ext_iface}",
+            "dhcp-range=192.168.1.2,192.168.1.30,12h",
+            "dhcp-option=1,255.255.255.0",
+            "dhcp-option=3,192.168.1.1",
+            "dhcp-option=6,192.168.1.1",
+            "server=8.8.8.8",
+            "log-queries",
+            "log-dhcp",
+            "listen-address=127.0.0.1",
         ]
-        return '\n'.join(dnsmasq_conf_rules)
+        return "\n".join(dnsmasq_conf_rules)
 
-    def dnsmasq_control(self, action):
+    @staticmethod
+    def dnsmasq_control(action):
         """Control dnsmasq service."""
-        return "systemctl {} dnsmasq.service && sleep 2".format(action)
+        return f"systemctl {action} dnsmasq.service && sleep 2"
 
     def initialize_dnsmasq(self):
         """Initialize dnsmasq setup on machine for easy routing."""
-        while(True):
-            try:
-                self.execute_command("ip route delete 192.168.1.0/24")
-            except Exception:
-                break
-        self.execute_command("ifconfig {} up 192.168.1.1 netmask 255.255.255."
-                             "0".format(self.interface))
-        self.execute_command("route add -net 192.168.1.0 netmask 255.255.255.0"
-                             " gw 192.168.1.1")
-        self.execute_command("iptables --table nat --append POSTROUTING "
-                             "--out-interface {} -j MASQUERADE".
-                             format(self.internet_interface))
-        self.execute_command("iptables --append FORWARD --in-interface {} "
-                             "-j ACCEPT".format(self.interface))
+        try:
+            args = {}
+            with open(self.iptables_config, "r") as defaults:
+                for line in defaults:
+                    (key, val) = line.strip().split("=")
+                    args[key] = val
+                subnet = args["subnet"]
+                gateway = args["gateway"]
+        except FileNotFoundError:
+            subnet = "192.168.1.0"
+            gateway = "192.168.1.1"
+
+        try:
+            self.execute_command(f"ip route delete {subnet}/24")
+        except (subprocess.CalledProcessError, WiFiControlError) as error:
+            print(f"Error: {error}")
+
+        self.execute_command(
+            f"ifconfig {self.ext_iface} up {gateway} netmask 255.255.255." "0"
+        )
+        self.execute_command(
+            f"route add -net {subnet} netmask 255.255.255.0" f" gw {gateway}"
+        )
+
+        # Code below sets up Packet Forwarding from wlan1 (antenna) to wlan0
+        # (raspi's wifi nic)
         self.execute_command("echo 1 > /proc/sys/net/ipv4/ip_forward")
+        self.execute_command(
+            f"iptables -A FORWARD -i {self.int_iface} -o {self.ext_iface} -m state "
+            f"--state ESTABLISHED,RELATED -j ACCEPT"
+        )
+        self.execute_command(
+            f"iptables -A FORWARD -i {self.ext_iface} -o {self.int_iface} -j ACCEPT"
+        )
+        self.execute_command(
+            f"iptables -t nat -A POSTROUTING -o {self.int_iface} -j MASQUERADE"
+        )
 
     def start(self):
         """Start dnsmasq service."""

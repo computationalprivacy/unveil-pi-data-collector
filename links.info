@@ -1,0 +1,9 @@
+iptables-persistent :: https://packages.debian.org/search?keywords=iptables-persistent
+
+iptables-legacy :: https://raspberrypi.stackexchange.com/questions/112596/is-iptables-broken-or-is-it-a-kernel-related-issue
+
+port-forwarding-with-iptables :: https://www.digitalocean.com/community/tutorials/how-to-forward-ports-through-a-linux-gateway-with-iptables
+
+opennds :: https://opennds.readthedocs.io/en/stable/compile.html
+
+internal-traffic-routing :: https://unix.stackexchange.com/questions/603464/route-traffic-between-interfaces-on-same-device-wlan0-to-usb0

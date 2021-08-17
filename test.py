@@ -1,10 +1,9 @@
 """Test for wifi."""
-from src.wifi import WiFiHandler
 import time
-import requests
+from src.wifi import WiFiHandler
 
 
-wifi = WiFiHandler('wlan1', 'wlan0')
+wifi = WiFiHandler("wlan0", "eth0", "12345678")
 # wifi.init_wifi()
 wifi.set_probe_req_mode()
 mac = wifi.get_device_mac()
@@ -24,8 +23,7 @@ print(mac)
 #     print(wifi.get_connected_users())
 #     time.sleep(300)
 print("Data collection starting.")
-wifi.start_collecting_data(
-    'collection_data.pcapng', probe_req_only=True)
+wifi.start_collecting_data("collection_data.pcapng", probe_req_only=True)
 time.sleep(60)
 print("Data collection stopping.")
 wifi.stop_collecting_data()
