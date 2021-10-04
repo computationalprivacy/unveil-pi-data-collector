@@ -88,7 +88,7 @@ We want to make raspberry pi a plug-and-play data collector device such that on 
 
 **Step 4a: Auto login into the Pi**
 
-To ensure the pi can login to the default user and start capturing packets as soon as it is plugged in, we modify the `lightdm` config file which is the default UI for the Kali Linux. The instructions for this can be found [here](https://hackersgrid.com/2020/03/raspberry-pi-autologin-kali.html).
+To ensure the pi can login to the default user and start capturing packets as soon as it is plugged in, we modify the `lightdm` config file which is the default UI for the Kali Linux. The instructions for this can be found [here](https://wiki.archlinux.org/title/LightDM#Enabling_autologin).
 
 **Step 4b: Auto start the pi-data-collector.**
 
